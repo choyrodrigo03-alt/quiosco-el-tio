@@ -6,7 +6,6 @@ st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 @st.cache_data(ttl=10)
 def cargar_inventario_local():
     try:
-        # Lee todas las pestañas directamente del archivo subido
         excel_file = pd.read_excel("inventario.xlsx.xlsx", sheet_name=None)
         
         dfs = []
@@ -33,8 +32,9 @@ def cargar_inventario_local():
             df["PRODUCTO"] = "Sin Nombre"
 
         if "PRECIO_VENTA" in df.columns:
+            # Convierte correctamente respetando números enteros o decimales estándar
             df["PRECIO_VENTA"] = pd.to_numeric(
-                df["PRECIO_VENTA"].astype(str).str.replace("$", "", regex=False).str.replace(".", "", regex=False).str.replace(",", ".", regex=False),
+                df["PRECIO_VENTA"].astype(str).str.replace("$", "", regex=False).str.strip(),
                 errors="coerce"
             ).fillna(0)
         else:
@@ -72,7 +72,7 @@ with col_izq:
         for i, fila in filtro.head(30).iterrows():
             c1, c2, c3 = st.columns([3, 2, 2])
             c1.write(f"**{fila['PRODUCTO']}**")
-            c2.write(f"${fila['PRECIO_VENTA']:,.2f}")
+            c2.write(f"${fila['PRECIO_VENTA']:g}")
             if c3.button("Agregar", key=f"btn_{i}_{fila['CODIGO']}"):
                 encontrado = False
                 for item in st.session_state.carrito:
@@ -101,13 +101,13 @@ with col_der:
             c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
             c1.write(f"{item['producto']}")
             c2.write(f"x{item['cantidad']}")
-            c3.write(f"${subtotal:,.2f}")
+            c3.write(f"${subtotal:g}")
             
             if c4.button("❌", key=f"del_{i}"):
                 st.session_state.carrito.pop(i)
                 st.rerun()
                 
-        st.markdown(f"## **TOTAL: ${total:,.2f}**")
+        st.markdown(f"## **TOTAL: ${total:g}**")
         
         c_btn1, c_btn2 = st.columns(2)
         if c_btn1.button("Vaciar / Nueva Venta", type="secondary"):
@@ -115,7 +115,7 @@ with col_der:
             st.rerun()
             
         if c_btn2.button("Cobrar", type="primary"):
-            st.success(f"¡Venta realizada por ${total:,.2f}!")
+            st.success(f"¡Venta realizada por ${total:g}!")
             st.session_state.carrito = []
     else:
         st.info("El carrito está vacío.")
