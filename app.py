@@ -4,43 +4,35 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
-# URL de tu Google Sheets nativo
-URL_SHEET = "https://docs.google.com/spreadsheets/d/1XsqX-ChVzkSkKni8zg54zo6dA7JnxCy6aYN6DeZIZM"
+# ID de tu planilla de Google Sheets
+SHEET_ID = "1XsqX-ChVzkSkKni8zg54zo6dA7JnxCy6aYN6DeZIZM"
 
 @st.cache_data(ttl=10)
-def cargar_inventario(url):
+def cargar_inventario_completo(sheet_id):
     try:
-        sheet_id = url.split("/d/")[1].split("/")[0]
+        # Enlace para descargar el libro completo en formato Excel
+        download_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
         
-        # Pestañas de tu Google Sheets
-        pestañas = ["Comestibles", "Gaseosas_Aguas", "Cervezas_Vinos", "Golosinas", "Limpieza"]
+        # Leer todas las hojas automáticamente
+        excel_file = pd.read_excel(download_url, sheet_name=None)
+        
         dfs = []
-
-        for pestaña in pestañas:
-            try:
-                csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={pestaña}"
-                df_hoja = pd.read_csv(csv_url)
+        for nombre_hoja, df_hoja in excel_file.items():
+            # Normalizar nombres de columnas
+            df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
+            
+            # Verificar que contenga los datos necesarios
+            if "PRODUCTO" in df_hoja.columns:
+                dfs.append(df_hoja)
                 
-                # Normalizar nombres de columnas
-                df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
-                
-                # Filtrar solo si tiene datos válidos
-                if "PRODUCTO" in df_hoja.columns:
-                    dfs.append(df_hoja)
-            except Exception:
-                continue
-
         if not dfs:
-            # Fallback por si cambia alguna pestaña
-            csv_url_default = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-            df_default = pd.read_csv(csv_url_default)
-            df_default.columns = df_default.columns.astype(str).str.strip().str.upper()
-            dfs = [df_default]
+            st.error("No se encontraron productos en las pestañas.")
+            return pd.DataFrame()
 
-        # Unir todas las pestañas en un solo DataFrame
+        # Unir todas las pestañas en un solo inventario
         df = pd.concat(dfs, ignore_index=True)
 
-        # Validar y limpiar campos principales
+        # Limpieza de datos
         if "CODIGO" in df.columns:
             df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
         else:
@@ -48,7 +40,6 @@ def cargar_inventario(url):
 
         if "PRODUCTO" in df.columns:
             df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
-            # Eliminar filas vacías o títulos de columna repetidos
             df = df[df["PRODUCTO"] != ""]
         else:
             df["PRODUCTO"] = "Sin Nombre"
@@ -63,11 +54,11 @@ def cargar_inventario(url):
 
         return df
     except Exception as e:
-        st.error(f"Error al cargar Google Sheets: {e}")
+        st.error(f"Error al cargar el inventario: {e}")
         return pd.DataFrame()
 
 # Cargar inventario completo
-inventario = cargar_inventario(URL_SHEET)
+inventario = cargar_inventario_completo(SHEET_ID)
 
 # Estado global del carrito
 if "carrito" not in st.session_state:
@@ -92,7 +83,7 @@ with col_izq:
 
         st.caption(f"Mostrando {len(filtro)} productos")
 
-        for i, fila in filtro.head(25).iterrows():
+        for i, fila in filtro.head(30).iterrows():
             c1, c2, c3 = st.columns([3, 2, 2])
             c1.write(f"**{fila['PRODUCTO']}**")
             c2.write(f"${fila['PRECIO_VENTA']:,.2f}")
