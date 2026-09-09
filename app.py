@@ -4,29 +4,40 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
-# Enlace de tu Google Sheets (Asegúrate de que esté público)
-URL_SHEET = "https://docs.google.com/spreadsheets/d/1JXMyOuuktJkhIaB1JFB7hRUd0zB4bhwu/edit?usp=sharing&ouid=101045086637018902951&rtpof=true&sd=true"
+URL_SHEET = "https://docs.google.com/spreadsheets/d/1JXMyOuuktJkhiaB1JFB7hRUd0zB4bhwu/edit?usp=sharing&ouid=101045086637018902951&rtpof=true&sd=true"
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10) # Actualiza rápido si haces cambios en Google Sheets
 def cargar_inventario(url):
     try:
-        # Convertir enlace común a formato de exportación CSV
         sheet_id = url.split("/d/")[1].split("/")[0]
         csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         
         df = pd.read_csv(csv_url)
-        df.columns = df.columns.astype(str).str.strip()
+        # Normalizar nombres de columnas (quitar espacios sobrantes)
+        df.columns = df.columns.astype(str).str.strip().str.upper()
         
-        df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
-        df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
-        df["PRECIO_VENTA"] = pd.to_numeric(df["PRECIO_VENTA"], errors="coerce").fillna(0)
-        
+        # Validar campos principales
+        if "CODIGO" in df.columns:
+            df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
+        else:
+            df["CODIGO"] = ""
+
+        if "PRODUCTO" in df.columns:
+            df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
+        else:
+            df["PRODUCTO"] = "Sin Nombre"
+
+        if "PRECIO_VENTA" in df.columns:
+            df["PRECIO_VENTA"] = pd.to_numeric(df["PRECIO_VENTA"].astype(str).str.replace("$", "").str.replace(",", "."), errors="coerce").fillna(0)
+        else:
+            df["PRECIO_VENTA"] = 0.0
+
         return df
     except Exception as e:
         st.error(f"Error al cargar Google Sheets: {e}")
         return pd.DataFrame()
 
-# Cargar datos
+# Cargar inventario
 inventario = cargar_inventario(URL_SHEET)
 
 # Estado global del carrito
@@ -41,21 +52,26 @@ with col_izq:
     st.header("Buscar Producto")
     busqueda = st.text_input("Escribe el nombre o código:", key="input_busqueda")
     
-    if busqueda and not inventario.empty:
-        filtro = inventario[
-            inventario["CODIGO"].str.lower().str.contains(busqueda.lower()) |
-            inventario["PRODUCTO"].str.lower().str.contains(busqueda.lower())
-        ]
-        
-        for _, fila in filtro.head(10).iterrows():
+    if not inventario.empty:
+        # Si escribió algo, filtra; si no, muestra los primeros 15 productos del inventario
+        if busqueda:
+            filtro = inventario[
+                inventario["CODIGO"].str.lower().str.contains(busqueda.lower()) |
+                inventario["PRODUCTO"].str.lower().str.contains(busqueda.lower())
+            ]
+        else:
+            filtro = inventario
+
+        st.caption(f"Mostrando {len(filtro)} productos")
+
+        for _, fila in filtro.head(15).iterrows():
             c1, c2, c3 = st.columns([3, 2, 2])
             c1.write(f"**{fila['PRODUCTO']}**")
             c2.write(f"${fila['PRECIO_VENTA']:,.2f}")
-            if c3.button("Agregar", key=f"btn_{fila['CODIGO']}"):
-                # Agregar al carrito
+            if c3.button("Agregar", key=f"btn_{fila['CODIGO']}_{fila['PRODUCTO']}"):
                 encontrado = False
                 for item in st.session_state.carrito:
-                    if item["codigo"] == fila["CODIGO"]:
+                    if item["producto"] == fila["PRODUCTO"]:
                         item["cantidad"] += 1
                         encontrado = True
                         break
