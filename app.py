@@ -3,14 +3,23 @@ import pandas as pd
 
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
-# Enlace CSV publicado correctamente configurado
-URL_PUBLICADA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRkTfFg6-G-DjOfiYBI5VymSvhrf09F2rvLNuYWDDRn1dtWtcb6H7-03GindOyn3_I4xDRsVzAUiuXf/pub?output=csv"
-
-@st.cache_data(ttl=5)
-def cargar_inventario(url):
+@st.cache_data(ttl=10)
+def cargar_inventario_local():
     try:
-        df = pd.read_csv(url)
-        df.columns = df.columns.astype(str).str.strip().str.upper()
+        # Lee todas las pestañas directamente del archivo subido
+        excel_file = pd.read_excel("inventario.xlsx.xlsx", sheet_name=None)
+        
+        dfs = []
+        for nombre_hoja, df_hoja in excel_file.items():
+            df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
+            if "PRODUCTO" in df_hoja.columns:
+                dfs.append(df_hoja)
+                
+        if not dfs:
+            st.error("No se encontraron productos en el archivo Excel")
+            return pd.DataFrame()
+
+        df = pd.concat(dfs, ignore_index=True)
 
         if "CODIGO" in df.columns:
             df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
@@ -33,10 +42,10 @@ def cargar_inventario(url):
 
         return df
     except Exception as e:
-        st.error(f"Error accediendo a la planilla: {e}")
+        st.error(f"Error al leer el archivo Excel: {e}")
         return pd.DataFrame()
 
-inventario = cargar_inventario(URL_PUBLICADA)
+inventario = cargar_inventario_local()
 
 if "carrito" not in st.session_state:
     st.session_state.carrito = []
