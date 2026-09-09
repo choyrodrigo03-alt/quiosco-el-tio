@@ -4,7 +4,7 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
-URL_SHEET = "https://docs.google.com/spreadsheets/d/1JXMyOuuktJkhiaB1JFB7hRUd0zB4bhwu/edit?usp=sharing&ouid=101045086637018902951&rtpof=true&sd=true"
+URL_SHEET = "https://docs.google.com/spreadsheets/d/1JXMyOuuktJkhiaB1JFB7hRUd0zB4bhwu"
 
 @st.cache_data(ttl=10) # Actualiza rápido si haces cambios en Google Sheets
 def cargar_inventario(url):
