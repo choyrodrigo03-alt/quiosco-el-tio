@@ -1,36 +1,42 @@
 import streamlit as st
 import pandas as pd
 
-# Configuración de la página
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
 SHEET_ID = "1XsqX-ChVzkSkKni8zg54zo6dA7JnxCy6aYN6DeZIZM"
 
-# REEMPLAZA ESTOS NÚMEROS POR LOS 'gid' DE TUS PESTAÑAS (los obtienes al hacer clic en cada una)
-GIDS = [
-    "130888396",  
-    "743911858",          
-    "1803120784", 
-    "1435458364",  
-    "1844018571"   
-]
-
-@st.cache_data(ttl=10)
-def cargar_inventario_completo(sheet_id, gids):
+@st.cache_data(ttl=5)
+def cargar_inventario(sheet_id):
+    # Probar lectura de la exportación global
+    url_base = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    
+    # Intentar cargar pestañas conocidas
+    pestañas = ["Comestibles", "Gaseosas_Aguas", "Cervezas_Vinos", "Golosinas", "Limpieza"]
     dfs = []
-    for gid in gids:
+    
+    for p in pestañas:
         try:
-            url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-            df_hoja = pd.read_csv(url)
-            df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
-            
-            if "PRODUCTO" in df_hoja.columns:
-                dfs.append(df_hoja)
+            url_pestaña = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={p}"
+            df_temp = pd.read_csv(url_pestaña)
+            df_temp.columns = df_temp.columns.astype(str).str.strip().str.upper()
+            if "PRODUCTO" in df_temp.columns:
+                dfs.append(df_temp)
         except Exception:
             continue
+            
+    # Si la lectura individual falla por los nombres, descargar la vista general
+    if not dfs:
+        try:
+            df_gen = pd.read_csv(url_base)
+            df_gen.columns = df_gen.columns.astype(str).str.strip().str.upper()
+            if "PRODUCTO" in df_gen.columns:
+                dfs.append(df_gen)
+        except Exception as e:
+            st.error(f"Error accediendo a la planilla: {e}")
+            return pd.DataFrame()
 
     if not dfs:
-        st.error("No se pudieron cargar los datos de Google Sheets. Revisa el acceso público o los 'gid'.")
+        st.error("No se detectaron datos válidos en la planilla.")
         return pd.DataFrame()
 
     df = pd.concat(dfs, ignore_index=True)
@@ -56,7 +62,7 @@ def cargar_inventario_completo(sheet_id, gids):
 
     return df
 
-inventario = cargar_inventario_completo(SHEET_ID, GIDS)
+inventario = cargar_inventario(SHEET_ID)
 
 if "carrito" not in st.session_state:
     st.session_state.carrito = []
