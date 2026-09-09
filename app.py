@@ -4,19 +4,43 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
-URL_SHEET = "https://docs.google.com/spreadsheets/d/1XsqX-ChXVzkSkKni8zg54zo6dA7JnxCy6aYN6DeZIZM/edit?usp=sharing"
+# URL de tu Google Sheets nativo
+URL_SHEET = "https://docs.google.com/spreadsheets/d/1XsqX-ChVzkSkKni8zg54zo6dA7JnxCy6aYN6DeZIZM"
 
-@st.cache_data(ttl=10) # Actualiza rápido si haces cambios en Google Sheets
+@st.cache_data(ttl=10)
 def cargar_inventario(url):
     try:
         sheet_id = url.split("/d/")[1].split("/")[0]
-        csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         
-        df = pd.read_csv(csv_url)
-        # Normalizar nombres de columnas (quitar espacios sobrantes)
-        df.columns = df.columns.astype(str).str.strip().str.upper()
-        
-        # Validar campos principales
+        # Pestañas de tu Google Sheets
+        pestañas = ["Comestibles", "Gaseosas_Aguas", "Cervezas_Vinos", "Golosinas", "Limpieza"]
+        dfs = []
+
+        for pestaña in pestañas:
+            try:
+                csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={pestaña}"
+                df_hoja = pd.read_csv(csv_url)
+                
+                # Normalizar nombres de columnas
+                df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
+                
+                # Filtrar solo si tiene datos válidos
+                if "PRODUCTO" in df_hoja.columns:
+                    dfs.append(df_hoja)
+            except Exception:
+                continue
+
+        if not dfs:
+            # Fallback por si cambia alguna pestaña
+            csv_url_default = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+            df_default = pd.read_csv(csv_url_default)
+            df_default.columns = df_default.columns.astype(str).str.strip().str.upper()
+            dfs = [df_default]
+
+        # Unir todas las pestañas en un solo DataFrame
+        df = pd.concat(dfs, ignore_index=True)
+
+        # Validar y limpiar campos principales
         if "CODIGO" in df.columns:
             df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
         else:
@@ -24,11 +48,16 @@ def cargar_inventario(url):
 
         if "PRODUCTO" in df.columns:
             df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
+            # Eliminar filas vacías o títulos de columna repetidos
+            df = df[df["PRODUCTO"] != ""]
         else:
             df["PRODUCTO"] = "Sin Nombre"
 
         if "PRECIO_VENTA" in df.columns:
-            df["PRECIO_VENTA"] = pd.to_numeric(df["PRECIO_VENTA"].astype(str).str.replace("$", "").str.replace(",", "."), errors="coerce").fillna(0)
+            df["PRECIO_VENTA"] = pd.to_numeric(
+                df["PRECIO_VENTA"].astype(str).str.replace("$", "", regex=False).str.replace(".", "", regex=False).str.replace(",", ".", regex=False),
+                errors="coerce"
+            ).fillna(0)
         else:
             df["PRECIO_VENTA"] = 0.0
 
@@ -37,7 +66,7 @@ def cargar_inventario(url):
         st.error(f"Error al cargar Google Sheets: {e}")
         return pd.DataFrame()
 
-# Cargar inventario
+# Cargar inventario completo
 inventario = cargar_inventario(URL_SHEET)
 
 # Estado global del carrito
@@ -53,7 +82,6 @@ with col_izq:
     busqueda = st.text_input("Escribe el nombre o código:", key="input_busqueda")
     
     if not inventario.empty:
-        # Si escribió algo, filtra; si no, muestra los primeros 15 productos del inventario
         if busqueda:
             filtro = inventario[
                 inventario["CODIGO"].str.lower().str.contains(busqueda.lower()) |
@@ -64,11 +92,11 @@ with col_izq:
 
         st.caption(f"Mostrando {len(filtro)} productos")
 
-        for _, fila in filtro.head(15).iterrows():
+        for i, fila in filtro.head(25).iterrows():
             c1, c2, c3 = st.columns([3, 2, 2])
             c1.write(f"**{fila['PRODUCTO']}**")
             c2.write(f"${fila['PRECIO_VENTA']:,.2f}")
-            if c3.button("Agregar", key=f"btn_{fila['CODIGO']}_{fila['PRODUCTO']}"):
+            if c3.button("Agregar", key=f"btn_{i}_{fila['CODIGO']}"):
                 encontrado = False
                 for item in st.session_state.carrito:
                     if item["producto"] == fila["PRODUCTO"]:
