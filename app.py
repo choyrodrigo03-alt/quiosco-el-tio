@@ -4,63 +4,60 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 
-# ID de tu planilla de Google Sheets
 SHEET_ID = "1XsqX-ChVzkSkKni8zg54zo6dA7JnxCy6aYN6DeZIZM"
 
+# REEMPLAZA ESTOS NÚMEROS POR LOS 'gid' DE TUS PESTAÑAS (los obtienes al hacer clic en cada una)
+GIDS = [
+    "130888396",  
+    "743911858",          
+    "1803120784", 
+    "1435458364",  
+    "1844018571"   
+]
+
 @st.cache_data(ttl=10)
-def cargar_inventario_completo(sheet_id):
-    try:
-        # Enlace para descargar el libro completo en formato Excel
-        download_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
-        
-        # Leer todas las hojas automáticamente
-        excel_file = pd.read_excel(download_url, sheet_name=None)
-        
-        dfs = []
-        for nombre_hoja, df_hoja in excel_file.items():
-            # Normalizar nombres de columnas
+def cargar_inventario_completo(sheet_id, gids):
+    dfs = []
+    for gid in gids:
+        try:
+            url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+            df_hoja = pd.read_csv(url)
             df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
             
-            # Verificar que contenga los datos necesarios
             if "PRODUCTO" in df_hoja.columns:
                 dfs.append(df_hoja)
-                
-        if not dfs:
-            st.error("No se encontraron productos en las pestañas.")
-            return pd.DataFrame()
+        except Exception:
+            continue
 
-        # Unir todas las pestañas en un solo inventario
-        df = pd.concat(dfs, ignore_index=True)
-
-        # Limpieza de datos
-        if "CODIGO" in df.columns:
-            df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
-        else:
-            df["CODIGO"] = ""
-
-        if "PRODUCTO" in df.columns:
-            df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
-            df = df[df["PRODUCTO"] != ""]
-        else:
-            df["PRODUCTO"] = "Sin Nombre"
-
-        if "PRECIO_VENTA" in df.columns:
-            df["PRECIO_VENTA"] = pd.to_numeric(
-                df["PRECIO_VENTA"].astype(str).str.replace("$", "", regex=False).str.replace(".", "", regex=False).str.replace(",", ".", regex=False),
-                errors="coerce"
-            ).fillna(0)
-        else:
-            df["PRECIO_VENTA"] = 0.0
-
-        return df
-    except Exception as e:
-        st.error(f"Error al cargar el inventario: {e}")
+    if not dfs:
+        st.error("No se pudieron cargar los datos de Google Sheets. Revisa el acceso público o los 'gid'.")
         return pd.DataFrame()
 
-# Cargar inventario completo
-inventario = cargar_inventario_completo(SHEET_ID)
+    df = pd.concat(dfs, ignore_index=True)
 
-# Estado global del carrito
+    if "CODIGO" in df.columns:
+        df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
+    else:
+        df["CODIGO"] = ""
+
+    if "PRODUCTO" in df.columns:
+        df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
+        df = df[df["PRODUCTO"] != ""]
+    else:
+        df["PRODUCTO"] = "Sin Nombre"
+
+    if "PRECIO_VENTA" in df.columns:
+        df["PRECIO_VENTA"] = pd.to_numeric(
+            df["PRECIO_VENTA"].astype(str).str.replace("$", "", regex=False).str.replace(".", "", regex=False).str.replace(",", ".", regex=False),
+            errors="coerce"
+        ).fillna(0)
+    else:
+        df["PRECIO_VENTA"] = 0.0
+
+    return df
+
+inventario = cargar_inventario_completo(SHEET_ID, GIDS)
+
 if "carrito" not in st.session_state:
     st.session_state.carrito = []
 
