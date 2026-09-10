@@ -6,49 +6,60 @@ st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 @st.cache_data(ttl=10)
 def cargar_inventario_local():
     try:
-        excel_file = pd.read_excel("inventario.xlsx.xlsx", sheet_name=None)
+        # Asegúrate de usar el nombre correcto de tu archivo
+        excel_file = pd.read_excel("inventario.xlsx", sheet_name=None)
         
         dfs = []
         for nombre_hoja, df_hoja in excel_file.items():
+            # Normalizar nombres de columnas (quita espacios y convierte a mayúsculas)
             df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
+            
+            # Reemplazar espacios por guiones bajos para soportar "PRECIO VENTA" o "PRECIO_VENTA"
+            df_hoja.columns = df_hoja.columns.str.replace(" ", "_")
+            
             if "PRODUCTO" in df_hoja.columns:
                 dfs.append(df_hoja)
                 
         if not dfs:
-            st.error("No se encontraron productos en el archivo Excel")
+            st.error("No se encontraron hojas con la columna 'PRODUCTO' en el archivo Excel.")
             return pd.DataFrame()
 
         df = pd.concat(dfs, ignore_index=True)
 
+        # Manejo de la columna CODIGO
         if "CODIGO" in df.columns:
             df["CODIGO"] = df["CODIGO"].fillna("").astype(str).str.strip()
         else:
             df["CODIGO"] = ""
 
+        # Manejo de la columna PRODUCTO
         if "PRODUCTO" in df.columns:
             df["PRODUCTO"] = df["PRODUCTO"].fillna("").astype(str).str.strip()
             df = df[df["PRODUCTO"] != ""]
         else:
             df["PRODUCTO"] = "Sin Nombre"
 
+        # Manejo y limpieza avanzada de la columna PRECIO_VENTA
         if "PRECIO_VENTA" in df.columns:
-            # CORRECCIÓN DE FORMATO: Convierte a texto, limpia espacios, quita el '$' y cambia comas por puntos
             precios_limpios = (
                 df["PRECIO_VENTA"]
                 .astype(str)
                 .str.replace("$", "", regex=False)
-                .str.replace(",", ".", regex=False)
+                .str.replace(" ", "", regex=False)
+                .str.replace(".", "", regex=False)  # Elimina puntos de miles
+                .str.replace(",", ".", regex=False) # Convierte comas decimales a puntos
                 .str.strip()
             )
-            # Convierte a número de forma segura. Lo que falle se vuelve 0.
             df["PRECIO_VENTA"] = pd.to_numeric(precios_limpios, errors="coerce").fillna(0.0)
         else:
             df["PRECIO_VENTA"] = 0.0
 
         return df
+
     except Exception as e:
         st.error(f"Error al leer el archivo Excel: {e}")
         return pd.DataFrame()
+
 
 inventario = cargar_inventario_local()
 
