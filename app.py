@@ -6,15 +6,13 @@ st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 @st.cache_data(ttl=10)
 def cargar_inventario_local():
     try:
-        # Nombre corregido según el nombre de tu archivo en la carpeta
+        # Carga el archivo Excel
         excel_file = pd.read_excel("inventario.xlsx.xlsx", sheet_name=None)
         
         dfs = []
         for nombre_hoja, df_hoja in excel_file.items():
-            # Normalizar nombres de columnas (quita espacios extra y pasa a mayúsculas)
+            # Normalizar nombres de columnas
             df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
-            
-            # Convierte "PRECIO VENTA" en "PRECIO_VENTA" por si no tiene guion bajo en Excel
             df_hoja.columns = df_hoja.columns.str.replace(" ", "_")
             
             if "PRODUCTO" in df_hoja.columns:
@@ -39,18 +37,20 @@ def cargar_inventario_local():
         else:
             df["PRODUCTO"] = "Sin Nombre"
 
-        # Limpieza de precios para evitar que salgan en $0
+        # Limpieza de precios sin eliminar los puntos decimales originales
         if "PRECIO_VENTA" in df.columns:
-            precios_limpios = (
-                df["PRECIO_VENTA"]
-                .astype(str)
-                .str.replace("$", "", regex=False)
-                .str.replace(" ", "", regex=False)
-                .str.replace(".", "", regex=False)  # Elimina puntos de miles
-                .str.replace(",", ".", regex=False) # Convierte comas decimales a puntos
-                .str.strip()
-            )
-            df["PRECIO_VENTA"] = pd.to_numeric(precios_limpios, errors="coerce").fillna(0.0)
+            if df["PRECIO_VENTA"].dtype == object:
+                precios_limpios = (
+                    df["PRECIO_VENTA"]
+                    .astype(str)
+                    .str.replace("$", "", regex=False)
+                    .str.replace(" ", "", regex=False)
+                    .str.replace(",", ".", regex=False)
+                    .str.strip()
+                )
+                df["PRECIO_VENTA"] = pd.to_numeric(precios_limpios, errors="coerce").fillna(0.0)
+            else:
+                df["PRECIO_VENTA"] = pd.to_numeric(df["PRECIO_VENTA"], errors="coerce").fillna(0.0)
         else:
             df["PRECIO_VENTA"] = 0.0
 
@@ -88,7 +88,7 @@ with col_izq:
         for i, fila in filtro.head(30).iterrows():
             c1, c2, c3 = st.columns([3, 2, 2])
             c1.write(f"**{fila['PRODUCTO']}**")
-            c2.write(f"${fila['PRECIO_VENTA']:g}")
+            c2.write(f"${fila['PRECIO_VENTA']:,.0f}".replace(",", "."))
             if c3.button("Agregar", key=f"btn_{i}_{fila['CODIGO']}"):
                 encontrado = False
                 for item in st.session_state.carrito:
@@ -117,13 +117,13 @@ with col_der:
             c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
             c1.write(f"{item['producto']}")
             c2.write(f"x{item['cantidad']}")
-            c3.write(f"${subtotal:g}")
+            c3.write(f"${subtotal:,.0f}".replace(",", "."))
             
             if c4.button("❌", key=f"del_{i}"):
                 st.session_state.carrito.pop(i)
                 st.rerun()
                 
-        st.markdown(f"## **TOTAL: ${total:g}**")
+        st.markdown(f"## **TOTAL: ${total:,.0f}**".replace(",", "."))
         
         c_btn1, c_btn2 = st.columns(2)
         if c_btn1.button("Vaciar / Nueva Venta", type="secondary"):
@@ -131,7 +131,7 @@ with col_der:
             st.rerun()
             
         if c_btn2.button("Cobrar", type="primary"):
-            st.success(f"¡Venta realizada por ${total:g}!")
+            st.success(f"¡Venta realizada por ${total:,.0f}!".replace(",", "."))
             st.session_state.carrito = []
     else:
         st.info("El carrito está vacío.")
