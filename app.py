@@ -6,15 +6,15 @@ st.set_page_config(page_title="QUIOSCO EL TÍO", layout="wide")
 @st.cache_data(ttl=10)
 def cargar_inventario_local():
     try:
-        # Asegúrate de usar el nombre correcto de tu archivo
-        excel_file = pd.read_excel("inventario.xlsx", sheet_name=None)
+        # Nombre corregido según el nombre de tu archivo en la carpeta
+        excel_file = pd.read_excel("inventario.xlsx.xlsx", sheet_name=None)
         
         dfs = []
         for nombre_hoja, df_hoja in excel_file.items():
-            # Normalizar nombres de columnas (quita espacios y convierte a mayúsculas)
+            # Normalizar nombres de columnas (quita espacios extra y pasa a mayúsculas)
             df_hoja.columns = df_hoja.columns.astype(str).str.strip().str.upper()
             
-            # Reemplazar espacios por guiones bajos para soportar "PRECIO VENTA" o "PRECIO_VENTA"
+            # Convierte "PRECIO VENTA" en "PRECIO_VENTA" por si no tiene guion bajo en Excel
             df_hoja.columns = df_hoja.columns.str.replace(" ", "_")
             
             if "PRODUCTO" in df_hoja.columns:
@@ -39,7 +39,7 @@ def cargar_inventario_local():
         else:
             df["PRODUCTO"] = "Sin Nombre"
 
-        # Manejo y limpieza avanzada de la columna PRECIO_VENTA
+        # Limpieza de precios para evitar que salgan en $0
         if "PRECIO_VENTA" in df.columns:
             precios_limpios = (
                 df["PRECIO_VENTA"]
