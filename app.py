@@ -32,11 +32,16 @@ def cargar_inventario_local():
             df["PRODUCTO"] = "Sin Nombre"
 
         if "PRECIO_VENTA" in df.columns:
-            # Convierte correctamente respetando números enteros o decimales estándar
-            df["PRECIO_VENTA"] = pd.to_numeric(
-                df["PRECIO_VENTA"].astype(str).str.replace("$", "", regex=False).str.strip(),
-                errors="coerce"
-            ).fillna(0)
+            # CORRECCIÓN DE FORMATO: Convierte a texto, limpia espacios, quita el '$' y cambia comas por puntos
+            precios_limpios = (
+                df["PRECIO_VENTA"]
+                .astype(str)
+                .str.replace("$", "", regex=False)
+                .str.replace(",", ".", regex=False)
+                .str.strip()
+            )
+            # Convierte a número de forma segura. Lo que falle se vuelve 0.
+            df["PRECIO_VENTA"] = pd.to_numeric(precios_limpios, errors="coerce").fillna(0.0)
         else:
             df["PRECIO_VENTA"] = 0.0
 
